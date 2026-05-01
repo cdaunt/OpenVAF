@@ -22,7 +22,9 @@ use linker::link;
 pub use llvm_sys::target_machine::LLVMCodeGenOptLevel;
 use mir_llvm::LLVMBackend;
 pub use paths::AbsPathBuf;
-use sim_back::{collect_modules, print_intern, print_module};
+use lasso::Rodeo;
+use sim_back::{collect_modules, print_intern, print_module, write_json};
+use sim_back::CompiledModule as SimCompiledModule;
 pub use target::host_triple;
 pub use target::spec::{get_target_names, Target};
 use termcolor::{Color, ColorChoice, ColorSpec, StandardStream, WriteColor};
@@ -57,63 +59,36 @@ pub struct Opts {
     pub dump_ir: bool,
     pub dump_unopt_ir: bool,
 }
-// pub fn dump_json(opts: &Opts) -> Result<CompilationTermination> {
-//     let input =
-//         opts.input.canonicalize().with_context(|| format!("failed to resolve {}", opts.input))?;
-//     let input = AbsPathBuf::assert(input);
-//     let db = CompilationDB::new_fs(input, &opts.include, &opts.defines, &opts.lints)?;
-//     let modules = if let Some(modules) = collect_modules(&db, true, &mut ConsoleSink::new(&db)) {
-//         modules
-//     } else {
-//         return Ok(CompilationTermination::FatalDiagnostic);
-//     };
-//     for module in modules {
-//         let (func, intern, strings, cfg) = module.build_opvar_mir(&db);
-//         let json = func.to_json(
-//             &cfg,
-//             &strings,
-//             |param| match *intern.params.get_index(param).unwrap().0 {
-//                 ParamKind::Param(param) => ("parameters", param.name(&db)),
-//                 ParamKind::Abstime => ("sim_state", "$abstime".to_owned()),
-//                 ParamKind::EnableIntegration => todo!(),
-//                 ParamKind::Voltage { hi, lo: Some(lo) } => {
-//                     ("voltages", format!("({}, {})", &hi.name(&db), &lo.name(&db)))
-//                 }
-//                 ParamKind::Voltage { hi, lo: None } => ("voltages", format!("({})", &hi.name(&db))),
-//                 ParamKind::Current(hir_lower::CurrentKind::Unnamed { hi, lo: Some(lo) }) => {
-//                     ("currents", format!("({}, {})", &hi.name(&db), &lo.name(&db)))
-//                 }
-//                 ParamKind::Current(hir_lower::CurrentKind::Unnamed { hi, lo: None }) => {
-//                     ("currents", format!("({})", hi.name(&db)))
-//                 }
-//                 ParamKind::Current(hir_lower::CurrentKind::Branch(br)) => {
-//                     ("currents", br.name(&db))
-//                 }
-//                 ParamKind::Temperature => ("sim_state", "$temperature".to_owned()),
-//                 ParamKind::ParamGiven { param } => ("param_given", param.name(&db)),
-//                 ParamKind::PortConnected { port } => ("port_connected", port.name(&db).to_string()),
-//                 ParamKind::ParamSysFun(param) => ("params", format!("${param:?}")),
-//                 _ => unreachable!(),
-//             },
-//             intern.outputs.iter().filter_map(|(kind, val)| {
-//                 let name = match *kind {
-//                     PlaceKind::Var(var) => var.name(&db).to_string(),
-//                     _ => return None,
-//                 };
-//                 Some((name, val.expand()?))
-//             }),
-//         );
-//         let path = opts.input.with_file_name(format!(
-//             "{}_{}.json",
-//             opts.input.file_stem().unwrap(),
-//             module.module.name(&db)
-//         ));
-//         if !opts.dry_run {
-//             std::fs::write(path, json)?;
-//         }
-//     }
-//     Ok(CompilationTermination::Compiled { lib_file: Utf8PathBuf::default() })
-// }
+pub fn dump_json(opts: &Opts) -> Result<CompilationTermination> {
+    let input =
+        opts.input.canonicalize().with_context(|| format!("failed to resolve {}", opts.input))?;
+    let input = AbsPathBuf::assert(input);
+    let db = CompilationDB::new_fs(input, &opts.include, &opts.defines, &opts.lints)?;
+
+    let module_infos =
+        if let Some(m) = collect_modules(&db, false, &mut ConsoleSink::new(&db)) {
+            m
+        } else {
+            return Ok(CompilationTermination::FatalDiagnostic);
+        };
+
+    let mut literals = Rodeo::new();
+    let stdout = std::io::stdout();
+    let mut out = stdout.lock();
+
+    // One module per VA `module` declaration; wrap in JSON array.
+    write!(out, "[")?;
+    for (i, module_info) in module_infos.iter().enumerate() {
+        if i > 0 {
+            write!(out, ",")?;
+        }
+        let compiled = SimCompiledModule::new(&db, module_info, &mut literals, false, false);
+        write_json(&compiled, &db, &literals, &mut out)?;
+    }
+    writeln!(out, "]")?;
+
+    Ok(CompilationTermination::Compiled { lib_file: Utf8PathBuf::default() })
+}
 
 pub fn expand(opts: &Opts) -> Result<CompilationTermination> {
     let start = Instant::now();

@@ -15,12 +15,15 @@ use crate::topology::Topology;
 mod context;
 pub mod dae;
 pub mod init;
+mod json;
 mod module_info;
 pub mod node_collapse;
 mod noise;
 mod topology;
 
 mod util;
+
+pub use json::write_json;
 
 // #[cfg(test)]
 // mod tests;
