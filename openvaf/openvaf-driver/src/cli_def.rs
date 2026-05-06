@@ -39,6 +39,8 @@ pub fn main_command() -> Command {
             interface(),
             expand(),
             dump_json(),
+            dump_unopt_json(),
+            dump_unopt_json_with_split(),
             input(),
         ])
         .subcommand_required(false)
@@ -65,6 +67,8 @@ pub const OPT_LVL: &str = "opt_lvl";
 pub const DEFINE: &str = "define";
 pub const PRINT_EXPANSION: &str = "print-expansion";
 pub const DUMP_JSON: &str = "dump-json";
+pub const DUMP_UNOPT_JSON: &str = "dump-unopt-json";
+pub const DUMP_UNOPT_JSON_WITH_SPLIT: &str = "dump-unopt-json-with-split";
 pub const ALLOW: &str = "allow";
 pub const WARN: &str = "warn";
 pub const DENY: &str = "deny";
@@ -301,6 +305,16 @@ directives (`include) resolved is emitted to stdout.",
 
 fn dump_json() -> Arg {
     flag(DUMP_JSON, "dump-json").help("Abort after lowering and serialize MIR as json.")
+}
+
+fn dump_unopt_json() -> Arg {
+    flag(DUMP_UNOPT_JSON, "dump-unopt-json")
+        .help("Serialize MIR as JSON from the raw unoptimized split (no ADCE, no SCCP/GVN).")
+}
+
+fn dump_unopt_json_with_split() -> Arg {
+    flag(DUMP_UNOPT_JSON_WITH_SPLIT, "dump-unopt-json-with-split")
+        .help("Serialize MIR as JSON from the ADCE-only refined split (no SCCP/GVN/phi-collapse).")
 }
 
 fn def_arg() -> Arg {

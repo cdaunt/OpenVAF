@@ -51,6 +51,24 @@ pub fn aggressive_dead_code_elimination(
         }
     }
 
+    // A dead Branch terminator stays in the layout but its cond was zapped
+    // and the inst defining the cond may have been removed — leaving the
+    // operand dangling. Rewrite any such Branch to a Jump to its else
+    // destination. Without this, a downstream consumer reading the function
+    // text sees an undefined operand. The dead-block loop below covers the
+    // common case but misses dead branches in live blocks (e.g. the entry
+    // block when both successors are control-equivalent).
+    for inst in dead_instructions.iter() {
+        if func.layout.inst_block(inst).is_some() {
+            if let InstructionData::Branch { else_dst, .. } = func.dfg.insts[inst] {
+                func.dfg.insts[inst] = InstructionData::Jump { destination: else_dst };
+                if let Some(bb) = func.layout.inst_block(inst) {
+                    cfg.recompute_block(func, bb);
+                }
+            }
+        }
+    }
+
     for bb in dead_blocks.iter() {
         if let Some(term) = func.layout.last_inst(bb) {
             if let InstructionData::Branch { else_dst, .. } = func.dfg.insts[term] {

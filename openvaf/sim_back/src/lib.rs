@@ -2,7 +2,7 @@ use hir::{BranchWrite, CompilationDB, Node};
 use hir_lower::{CurrentKind, HirInterner, ImplicitEquation, ParamKind};
 use lasso::Rodeo;
 use mir::Function;
-use mir_opt::{simplify_cfg, sparse_conditional_constant_propagation};
+use mir_opt::{simplify_cfg, sparse_conditional_constant_propagation, GVN};
 pub use module_info::{collect_modules, ModuleInfo};
 use stdx::impl_debug_display;
 
@@ -163,6 +163,27 @@ impl<'a> CompiledModule<'a> {
         dump_unopt_mir: bool,
         dump_mir: bool,
     ) -> CompiledModule<'a> {
+        Self::new_with_opts(db, module, literals, dump_unopt_mir, dump_mir, false, true)
+    }
+
+    /// Like `new`, but when `skip_value_opts` is true the init/eval split is
+    /// performed without any value-level optimization passes (no SCCP, GVN,
+    /// inst_combine, simplify_cfg, or DAE sparsification) so that the emitted
+    /// function bodies preserve their pre-optimization structure.
+    ///
+    /// `run_adce` controls whether ADCE is run to prune dead cache slots.
+    /// When both `skip_value_opts` and `run_adce` are true, only ADCE and
+    /// `simplify_cfg_no_phi_merge` are applied (the ADCE-only refined split).
+    /// When `run_adce` is false, no optimization passes run at all (raw split).
+    pub fn new_with_opts(
+        db: &CompilationDB,
+        module: &'a ModuleInfo,
+        literals: &mut Rodeo,
+        dump_unopt_mir: bool,
+        dump_mir: bool,
+        skip_value_opts: bool,
+        run_adce: bool,
+    ) -> CompiledModule<'a> {
         // Build MIR for the module
         let mut cx = Context::new(db, literals, module);
 
@@ -174,7 +195,13 @@ impl<'a> CompiledModule<'a> {
         // Some basic optimization
         cx.compute_outputs(true);
         cx.compute_cfg();
-        cx.optimize(OptimiziationStage::Initial);
+        if skip_value_opts {
+            // The split needs an up-to-date dom-tree; building it is structural,
+            // not a value-level optimization, so we still do it here.
+            cx.compute_domtree(true, true, false);
+        } else {
+            cx.optimize(OptimiziationStage::Initial);
+        }
         debug_assert!(cx.func.validate());
 
         // Add extra stuff needed for evaluating the DAE system
@@ -191,15 +218,26 @@ impl<'a> CompiledModule<'a> {
 
         // Optimization
         cx.compute_cfg();
-        let gvn = cx.optimize(OptimiziationStage::PostDerivative);
-        dae_system.sparsify(&mut cx);
+        let gvn = if skip_value_opts {
+            cx.compute_domtree(true, true, false);
+            // An empty GVN: every cached init value will end up in its own
+            // equivalence class (no cache sharing) which is the correct
+            // behavior for the unoptimized split.
+            let mut gvn = GVN::default();
+            gvn.init(&cx.func, &cx.dom_tree, cx.intern.params.len() as u32);
+            gvn
+        } else {
+            let g = cx.optimize(OptimiziationStage::PostDerivative);
+            dae_system.sparsify(&mut cx);
+            g
+        };
         debug_assert!(cx.func.validate());
 
         // Instance setup MIR - a copy of module MIR where only those instructions
         // are kept that do not depend on op.
         // This removes all instructions that do not depend on op from module MIR.
         cx.refresh_op_dependent_insts();
-        let mut init = Initialization::new(&mut cx, gvn);
+        let mut init = Initialization::new_with_opts(&mut cx, gvn, skip_value_opts, run_adce);
         // Build node collapse pairs
         let node_collapse = NodeCollapse::new(&init, &dae_system, &cx);
         debug_assert!(cx.func.validate());
@@ -228,9 +266,11 @@ impl<'a> CompiledModule<'a> {
             &model_params,
         );
         cx.cfg.compute(&model_param_setup);
-        simplify_cfg(&mut model_param_setup, &mut cx.cfg);
-        sparse_conditional_constant_propagation(&mut model_param_setup, &cx.cfg);
-        simplify_cfg(&mut model_param_setup, &mut cx.cfg);
+        if !skip_value_opts {
+            simplify_cfg(&mut model_param_setup, &mut cx.cfg);
+            sparse_conditional_constant_propagation(&mut model_param_setup, &cx.cfg);
+            simplify_cfg(&mut model_param_setup, &mut cx.cfg);
+        }
 
         if dump_mir {
             println!("Optimized model setup MIR of {}", module.module.name(db));

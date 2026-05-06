@@ -58,7 +58,78 @@ pub struct Opts {
     pub dump_unopt_mir: bool,
     pub dump_ir: bool,
     pub dump_unopt_ir: bool,
+    pub dump_unopt_json: bool,
+    pub dump_unopt_json_with_split: bool,
 }
+/// Emit JSON (same schema as `--dump-json`) from the raw unoptimized split:
+/// no ADCE, no SCCP, no GVN — preserves the full pre-optimization structure.
+pub fn dump_unopt_json(opts: &Opts) -> Result<CompilationTermination> {
+    let input =
+        opts.input.canonicalize().with_context(|| format!("failed to resolve {}", opts.input))?;
+    let input = AbsPathBuf::assert(input);
+    let db = CompilationDB::new_fs(input, &opts.include, &opts.defines, &opts.lints)?;
+
+    let module_infos =
+        if let Some(m) = collect_modules(&db, false, &mut ConsoleSink::new(&db)) {
+            m
+        } else {
+            return Ok(CompilationTermination::FatalDiagnostic);
+        };
+
+    let mut literals = Rodeo::new();
+    let stdout = std::io::stdout();
+    let mut out = stdout.lock();
+
+    write!(out, "[")?;
+    for (i, module_info) in module_infos.iter().enumerate() {
+        if i > 0 {
+            write!(out, ",")?;
+        }
+        // skip_value_opts=true, run_adce=false → raw split, no optimization
+        let compiled =
+            SimCompiledModule::new_with_opts(&db, module_info, &mut literals, false, false, true, false);
+        write_json(&compiled, &db, &literals, &mut out)?;
+    }
+    writeln!(out, "]")?;
+
+    Ok(CompilationTermination::Compiled { lib_file: Utf8PathBuf::default() })
+}
+
+/// Emit JSON (same schema as `--dump-json`) from the ADCE-only refined split:
+/// no SCCP/GVN/phi-collapse, but ADCE + simplify_cfg_no_phi_merge are applied
+/// to prune dead cache slots while preserving 2-edge phi structure.
+pub fn dump_unopt_json_with_split(opts: &Opts) -> Result<CompilationTermination> {
+    let input =
+        opts.input.canonicalize().with_context(|| format!("failed to resolve {}", opts.input))?;
+    let input = AbsPathBuf::assert(input);
+    let db = CompilationDB::new_fs(input, &opts.include, &opts.defines, &opts.lints)?;
+
+    let module_infos =
+        if let Some(m) = collect_modules(&db, false, &mut ConsoleSink::new(&db)) {
+            m
+        } else {
+            return Ok(CompilationTermination::FatalDiagnostic);
+        };
+
+    let mut literals = Rodeo::new();
+    let stdout = std::io::stdout();
+    let mut out = stdout.lock();
+
+    write!(out, "[")?;
+    for (i, module_info) in module_infos.iter().enumerate() {
+        if i > 0 {
+            write!(out, ",")?;
+        }
+        // skip_value_opts=true, run_adce=true → ADCE-only refined split
+        let compiled =
+            SimCompiledModule::new_with_opts(&db, module_info, &mut literals, false, false, true, true);
+        write_json(&compiled, &db, &literals, &mut out)?;
+    }
+    writeln!(out, "]")?;
+
+    Ok(CompilationTermination::Compiled { lib_file: Utf8PathBuf::default() })
+}
+
 pub fn dump_json(opts: &Opts) -> Result<CompilationTermination> {
     let input =
         opts.input.canonicalize().with_context(|| format!("failed to resolve {}", opts.input))?;
