@@ -11,7 +11,10 @@ use mir::{
     strip_optbarrier, Block, ControlFlowGraph, DominatorTree, FuncRef, Function, Inst,
     InstructionData, Opcode, Value, FALSE,
 };
-use mir_opt::{aggressive_dead_code_elimination, simplify_cfg, simplify_cfg_init, ClassId, GVN};
+use mir_opt::{
+    aggressive_dead_code_elimination, simplify_cfg, simplify_cfg_init, simplify_cfg_no_phi_merge,
+    ClassId, GVN,
+};
 use rustc_hash::FxHasher;
 use stdx::packed_option::PackedOption;
 use stdx::{impl_debug_display, impl_idx_from};
@@ -40,6 +43,18 @@ pub struct Initialization {
 
 impl Initialization {
     pub(super) fn new(cx: &mut Context<'_>, gvn: GVN) -> Initialization {
+        Self::new_with_opts(cx, gvn, false, true)
+    }
+
+    /// `skip_value_opts`: skip SCCP/GVN/phi-collapse (preserves pre-opt structure).
+    /// `run_adce`: run ADCE to prune dead cache slots.  Set to `false` for a
+    /// completely unoptimized split (more cache slots, no DCE).
+    pub(super) fn new_with_opts(
+        cx: &mut Context<'_>,
+        gvn: GVN,
+        skip_value_opts: bool,
+        run_adce: bool,
+    ) -> Initialization {
         // Create empty blocks in init MIR based on layout of module MIR
         let mut builder = Builder::new(cx);
         for _ in 0..builder.func.layout.num_blocks() {
@@ -57,8 +72,12 @@ impl Initialization {
             builder.split_block(bb);
         }
         let collapse_implicit = builder.build_init_itern();
-        builder.build_init_cache(&gvn, &collapse_implicit);
-        builder.optimize(collapse_implicit);
+        builder.build_init_cache(&gvn, &collapse_implicit, run_adce);
+        if run_adce {
+            builder.optimize(collapse_implicit, skip_value_opts);
+        } else {
+            builder.cfg.compute(&builder.init.func);
+        }
         builder.init
     }
 }
@@ -246,16 +265,22 @@ impl<'a> Builder<'a> {
         }
     }
 
-    fn build_init_cache(&mut self, gvn: &GVN, collapse_implicit: &AHashSet<Value>) {
-        // first run deadcode elimination on the main function to figure out which cached
-        // initialization values are actually used
-        self.dom_tree.compute_postdom_frontiers(self.cfg, &mut self.control_dep);
-        aggressive_dead_code_elimination(
-            self.func,
-            self.cfg,
-            &|val, _| self.output_values.contains(val),
-            &self.control_dep,
-        );
+    fn build_init_cache(&mut self, gvn: &GVN, collapse_implicit: &AHashSet<Value>, run_adce: bool) {
+        // Run aggressive DCE on the eval function first so we know which
+        // cached initialization values are actually used. ADCE only removes
+        // unreachable instructions/blocks; it does not collapse phi nodes or
+        // fold values, so it is safe to run even on the unoptimized-with-split
+        // dump path.  When `run_adce` is false (raw-split path) we skip this
+        // and accept more cache slots in exchange for zero optimization.
+        if run_adce {
+            self.dom_tree.compute_postdom_frontiers(self.cfg, &mut self.control_dep);
+            aggressive_dead_code_elimination(
+                self.func,
+                self.cfg,
+                &|val, _| self.output_values.contains(val),
+                &self.control_dep,
+            );
+        }
 
         // now create a cache slot for every equivalence class of values
         // that was cached
@@ -317,9 +342,17 @@ impl<'a> Builder<'a> {
             .collect();
     }
 
-    fn optimize(&mut self, collapse_implicit: AHashSet<Value>) {
-        // perform final optimization/DCE
-        simplify_cfg(self.func, self.cfg);
+    fn optimize(&mut self, collapse_implicit: AHashSet<Value>, dce_only: bool) {
+        // perform final optimization/DCE.
+        // When `dce_only` is set we use `simplify_cfg_no_phi_merge` instead of
+        // the full `simplify_cfg` so 2-edge phi chains aren't merged across
+        // empty pred blocks; otherwise ADCE leaves a sea of trivially-empty
+        // blocks (br/jmp/jmp/jmp...) that bloat the eval body.
+        if dce_only {
+            simplify_cfg_no_phi_merge(self.func, self.cfg);
+        } else {
+            simplify_cfg(self.func, self.cfg);
+        }
         self.cfg.compute(&self.init.func);
         aggressive_dead_code_elimination(
             &mut self.init.func,
@@ -327,7 +360,11 @@ impl<'a> Builder<'a> {
             &|val, _| self.init.cached_vals.contains_key(&val) || collapse_implicit.contains(&val),
             &self.control_dep,
         );
-        simplify_cfg_init(&mut self.init.func, self.cfg);
+        if dce_only {
+            simplify_cfg_no_phi_merge(&mut self.init.func, self.cfg);
+        } else {
+            simplify_cfg_init(&mut self.init.func, self.cfg);
+        }
     }
 
     fn build_init_itern(&mut self) -> AHashSet<Value> {

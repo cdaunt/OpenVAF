@@ -1025,6 +1025,7 @@ dependencies = [
  "float-cmp",
  "hir",
  "indexmap 2.10.0",
+ "lasso",
  "libc",
  "libloading",
  "linker",
