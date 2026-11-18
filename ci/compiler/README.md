@@ -6,8 +6,8 @@ This modified work is provided under the GNU GPL version 3; see `LICENSE`.
 Bug and fix record: https://github.com/cdaunt/OpenVAF/issues/2.
 
 The fork tracks upstream `mb-experimental`. The `OSDI 0.5 compiler artifacts`
-workflow builds Linux x86_64 (Ubuntu 24.04 baseline), macOS arm64 (minimum macOS
-13.0) and Windows x86_64 (Windows 10/Server 2022 or newer). It uploads candidates
+workflow builds Linux x86_64 (Ubuntu 24.04 baseline), macOS arm64/x86_64 (minimum
+macOS 13.0) and Windows x86_64 (Windows 10/Server 2022 or newer). It uploads candidates
 for 30 days and does not publish releases. Pin a tested commit and archive
 checksum; never implicitly select the newest branch build.
 
@@ -33,8 +33,8 @@ checks floating-point and 32 KiB stack-frame support after relocation.
 
 ## Build and verification
 
-Producer CI uses the same checked-in `pixi.toml` and `pixi.lock` on all three
-platforms, with conda-forge LLVM/Clang/LLD 21.1.8 and Rust 1.94.0. Run
+Producer CI uses the same checked-in `pixi.toml` and `pixi.lock` on all four
+targets, with conda-forge LLVM/Clang/LLD 21.1.8 and Rust 1.94.0. Run
 `pixi install --locked` and `pixi run build`. Producer build machines still need
 their normal platform build prerequisites (including the MSVC build environment
 on Windows and developer tools on macOS); consumers do not.

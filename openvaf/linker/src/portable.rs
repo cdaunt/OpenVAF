@@ -58,12 +58,17 @@ pub(super) fn linker(
         "macos" => {
             // The OSDI host supplies libSystem symbols. Dynamic lookup avoids
             // requiring or redistributing an Apple SDK on the consumer machine.
+            let arch = match target.arch.as_str() {
+                "aarch64" => "arm64",
+                "x86_64" => "x86_64",
+                other => bail!("unsupported portable macOS architecture: {other}"),
+            };
             cmd.args([
                 "-dylib",
                 "-undefined",
                 "dynamic_lookup",
                 "-arch",
-                "arm64",
+                arch,
                 "-platform_version",
                 "macos",
                 "13.0",

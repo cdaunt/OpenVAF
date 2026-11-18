@@ -6,5 +6,7 @@
 *.json text eol=lf
 *.yml text eol=lf
 Cargo.lock text eol=lf
+pixi.lock text eol=lf
+pixi.toml text eol=lf
 
 *.ungram text eol=lf
