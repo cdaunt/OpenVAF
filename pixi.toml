@@ -16,3 +16,11 @@ patchelf = ">=0.17,<0.20"
 [tasks]
 build = "python ci/compiler/build.py"
 metadata-check = "python ci/compiler/check_metadata.py target/release/openvaf-r build/metadata-check"
+
+# The unbundled development executable has not received portable RPATHs yet.
+[target.linux-64.activation.env]
+LD_LIBRARY_PATH = "$CONDA_PREFIX/lib"
+
+[target.win-64.dependencies]
+zlib = "1.3.2.*"
+libxml2-devel = "2.15.*"
