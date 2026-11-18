@@ -24,7 +24,7 @@ def verify(archive, hide_environment=None):
                 raise RuntimeError(f"Refusing to overwrite {hidden}")
             environment.rename(hidden)
         with tempfile.TemporaryDirectory(prefix="OpenVAF portable 空间 ") as temporary:
-            root = Path(temporary)
+            root = Path(temporary).resolve()
             with zipfile.ZipFile(archive) as source:
                 for item in source.infolist():
                     if not (root / item.filename).resolve().is_relative_to(root):
