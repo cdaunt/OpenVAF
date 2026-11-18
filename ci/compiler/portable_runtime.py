@@ -123,25 +123,77 @@ def copy_notices(prefix, sources, output):
 
 def windows_import_library(stage):
     """Generate an import library for the operating system's UCRT, not an SDK copy."""
-    dll = Path(os.environ["SYSTEMROOT"]) / "System32/ucrtbase.dll"
-    exports = capture("llvm-readobj", "--coff-exports", str(dll))
-    names = re.findall(r"^\s*Name: (\S+)", exports, re.MULTILINE)
-    if not names:
-        raise RuntimeError("No UCRT exports found")
-    definition = stage / "lib/ucrtbase.def"
-    definition.write_text("LIBRARY ucrtbase.dll\nEXPORTS\n" + "\n".join(names) + "\n")
+    for library in ("ucrtbase", "kernelbase"):
+        dll = Path(os.environ["SYSTEMROOT"]) / f"System32/{library}.dll"
+        exports = capture("llvm-readobj", "--coff-exports", str(dll))
+        names = re.findall(r"^\s*Name: (\S+)", exports, re.MULTILINE)
+        if library == "kernelbase":
+            if "__chkstk" not in names:
+                raise RuntimeError("System kernelbase.dll lacks __chkstk")
+            names = ["__chkstk"]
+        if not names:
+            raise RuntimeError(f"No exports found in {dll}")
+        definition = stage / f"lib/{library}.def"
+        definition.write_text(
+            f"LIBRARY {library}.dll\nEXPORTS\n" + "\n".join(names) + "\n"
+        )
+        subprocess.run(
+            [
+                "llvm-dlltool",
+                "-m",
+                "i386:x86-64",
+                "-d",
+                str(definition),
+                "-l",
+                str(stage / f"lib/{library}.lib"),
+            ],
+            check=True,
+        )
+    runtime = Path(__file__).with_name("windows_runtime.c")
+    shutil.copy2(runtime, stage / "lib/windows_runtime.c")
     subprocess.run(
         [
-            "llvm-dlltool",
-            "-m",
-            "i386:x86-64",
-            "-d",
-            str(definition),
-            "-l",
-            str(stage / "lib/ucrtbase.lib"),
+            "clang",
+            "--target=x86_64-pc-windows-msvc",
+            "-c",
+            str(runtime),
+            "-o",
+            str(stage / "lib/runtime.obj"),
         ],
         check=True,
     )
+
+    checks = stage / "checks"
+    checks.mkdir()
+    checker = Path(__file__).with_name("check_windows_runtime.py")
+    shutil.copy2(checker, checks / checker.name)
+    probe_source = Path(__file__).with_name("windows_runtime_probe.c")
+    shutil.copy2(probe_source, checks / probe_source.name)
+    subprocess.run(
+        [
+            "clang",
+            "--target=x86_64-pc-windows-msvc",
+            "-c",
+            str(probe_source),
+            "-o",
+            str(checks / "probe.obj"),
+        ],
+        check=True,
+    )
+    subprocess.run(
+        [
+            str(stage / "bin/lld-link.exe"),
+            "/DLL",
+            "/NOENTRY",
+            "/NODEFAULTLIB",
+            f"/OUT:{checks / 'probe.dll'}",
+            str(checks / "probe.obj"),
+            str(stage / "lib/runtime.obj"),
+            str(stage / "lib/kernelbase.lib"),
+        ],
+        check=True,
+    )
+    (checks / "probe.obj").unlink()
 
 
 def bundle(stage, prefix):

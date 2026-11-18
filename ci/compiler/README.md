@@ -26,7 +26,10 @@ using executable-relative paths. Portable mode supports the native target only.
 Explicit `--linker` overrides retain upstream behavior for advanced toolchains;
 cross-compilation is not qualified by these archives. macOS libraries resolve
 system symbols through their loading host, without an embedded Apple SDK.
-Windows import libraries are generated from the operating system UCRT exports.
+Windows import libraries are generated from the operating system UCRT and
+KernelBase stack-probe exports. The small floating-point-use marker object has
+its complete 0BSD license in `lib/windows_runtime.c`. A separate Windows test DLL
+checks floating-point and 32 KiB stack-frame support after relocation.
 
 ## Build and verification
 

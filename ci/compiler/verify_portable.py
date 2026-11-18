@@ -43,6 +43,16 @@ def verify(archive, hide_environment=None):
                 if key.upper() in {"SYSTEMROOT", "WINDIR", "TEMP", "TMP", "HOME"}
             }
             env["PATH"] = str(empty)
+            if os.name == "nt":
+                subprocess.run(
+                    [
+                        sys.executable,
+                        str(stage / "checks/check_windows_runtime.py"),
+                        str(stage / "checks/probe.dll"),
+                    ],
+                    env=env,
+                    check=True,
+                )
             exe = "openvaf-r.exe" if os.name == "nt" else "openvaf-r"
             subprocess.run(
                 [
@@ -66,6 +76,7 @@ def verify(archive, hide_environment=None):
             "empty_path": True,
             "environment_hidden": bool(hide_environment),
             "relocated_spaces_unicode": True,
+            "windows_stack_probe": os.name == "nt",
             "metadata": receipt,
         }
         destination = output / (archive.stem + "-portable-check.json")

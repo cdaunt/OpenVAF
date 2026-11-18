@@ -46,12 +46,14 @@ pub(super) fn linker(
     let mut cmd = Command::new(executable);
     match native_os {
         "windows" => {
-            let import = directory.join("../lib/ucrtbase.lib");
-            if !import.is_file() {
-                bail!("portable compiler is incomplete: missing {}", import.display());
-            }
             cmd.args(["/DLL", "/NOENTRY", "/NODEFAULTLIB", "/NOIMPLIB", "/MACHINE:X64"]);
-            cmd.arg(import);
+            for name in ["ucrtbase.lib", "kernelbase.lib", "runtime.obj"] {
+                let path = directory.join("../lib").join(name);
+                if !path.is_file() {
+                    bail!("portable compiler is incomplete: missing {}", path.display());
+                }
+                cmd.arg(path);
+            }
         }
         "macos" => {
             // The OSDI host supplies libSystem symbols. Dynamic lookup avoids
