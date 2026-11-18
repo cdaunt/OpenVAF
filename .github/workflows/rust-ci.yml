@@ -21,7 +21,7 @@ on:
 
 jobs:
   format:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
     - uses: actions/checkout@v4
     - name: Install Rust toolchain
@@ -32,7 +32,7 @@ jobs:
       run: cargo fmt -- --check
 
   machete:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
     - name: Setup sccache
       if: github.event_name != 'release' && github.event_name != 'workflow_dispatch'
@@ -57,7 +57,7 @@ jobs:
 
   # Detect available LLVM versions from GitHub releases
   detect-llvm-versions:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     outputs:
       matrix: ${{ steps.set-matrix.outputs.matrix }}
     steps:
@@ -112,7 +112,7 @@ jobs:
           - llvm_version: "21"
             llvm_env_var: "LLVM_SYS_211_PREFIX"
             cargo_features: "--no-default-features --features llvm21"
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs: [format, machete, purge-caches]
     steps:
     - uses: actions/checkout@v4
@@ -145,7 +145,6 @@ jobs:
           ~/.cargo/registry/cache/
           ~/.cargo/git/db/
           target/
-        save-always: true
         key: ${{ runner.os }}-${{runner.arch}}-llvm${{ matrix.llvm_version }}-cargo-${{ hashFiles('**/Cargo.lock') }}
         restore-keys: ${{ runner.os }}-${{runner.arch}}-llvm${{ matrix.llvm_version }}-cargo-
 
@@ -276,7 +275,6 @@ jobs:
           ~/.cargo/registry/cache/
           ~/.cargo/git/db/
           target/
-        save-always: true
         key: ${{ runner.os }}-${{ runner.arch }}-cargo-${{ hashFiles('**/Cargo.lock') }}
         restore-keys: ${{ runner.os }}-${{ runner.arch }}-cargo-
 
@@ -297,7 +295,7 @@ jobs:
       fail-fast: false
       matrix:
         # Use Homebrew LLVM 21 (llvm@21) on all macOS runners
-        image: [macos-15-intel, macos-15, macos-26]
+        image: [macos-15, macos-26]
 
     runs-on: ${{ matrix.image }}
     needs: [format, machete, purge-caches]
@@ -340,7 +338,6 @@ jobs:
           ~/.cargo/registry/cache/
           ~/.cargo/git/db/
           target/
-        save-always: true
         key: ${{ matrix.image }}-${{runner.arch}}-llvm21-cargo-${{ hashFiles('**/Cargo.lock') }}
         restore-keys: ${{ matrix.image }}-${{runner.arch}}-llvm21-cargo-
 
@@ -354,7 +351,7 @@ jobs:
       run: cargo test --release --features llvm21 --test integration
 
   purge-caches:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     outputs:
       deleted: true
     steps:
