@@ -11,6 +11,8 @@ use camino::{Utf8Path, Utf8PathBuf};
 use cc::windows_registry;
 use target::spec::{LinkerFlavor, Target};
 
+mod portable;
+
 /// Get the LLVM prefix from environment variables.
 /// Checks in order: LLVM 23.1, 22.1, 21.1, 20.1, 19.1, 18.1 (newest first).
 fn get_llvm_prefix() -> Option<String> {
@@ -29,7 +31,11 @@ pub fn link(
     out_filename: &Utf8Path,
     add_objects: impl FnOnce(&mut dyn Linker),
 ) -> Result<()> {
-    let mut linker = linker_with_args(path, target, out_filename, add_objects);
+    let mut linker = if let Some(directory) = portable::directory(path.is_none())? {
+        portable::linker(&directory, target, out_filename, add_objects)?
+    } else {
+        linker_with_args(path, target, out_filename, add_objects)
+    };
 
     let import_lib_path = out_filename.with_file_name("__openvaf__import.lib");
     if !target.options.import_lib.is_empty() {

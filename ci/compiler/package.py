@@ -10,6 +10,8 @@ import sys
 import zipfile
 from pathlib import Path
 
+from portable_runtime import bundle
+
 ROOT = Path(__file__).resolve().parents[2]
 
 
@@ -40,25 +42,23 @@ def main():
     )
     for name in ("affine.va", "nonlinear.va", "check_metadata.py"):
         shutil.copy2(ROOT / "ci/compiler" / name, stage / name)
-    system = platform.system()
-    if system == "Linux":
-        deps = capture("ldd", str(binary))
-    elif system == "Darwin":
-        deps = capture("otool", "-L", str(binary))
-    else:
-        deps = capture("objdump", "-p", str(binary))
-    (stage / "runtime-dependencies.txt").write_text(deps + "\n", encoding="utf-8")
+    bundle(stage, Path(os.environ["CONDA_PREFIX"]).resolve())
     provenance = {
         "repository": "https://github.com/cdaunt/OpenVAF",
         "commit": commit,
         "source_archive": f"openvaf-r-source-{commit}.zip",
         "target": target,
         "osdi": "0.5",
+        "portable": True,
+        "source_commit_date": capture("git", "show", "-s", "--format=%cI", "HEAD"),
+        "pixi_lock_sha256": hashlib.sha256(
+            (ROOT / "pixi.lock").read_bytes()
+        ).hexdigest(),
         "compiler_version": capture(str(binary), "--version"),
         "rust": capture(
             "rustup",
             "run",
-            "1.94.0-x86_64-pc-windows-gnu" if system == "Windows" else "1.94.0",
+            "1.94.0",
             "rustc",
             "-vV",
         ),

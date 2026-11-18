@@ -1,0 +1,18 @@
+[workspace]
+name = "openvaf-osdi05-compiler"
+channels = ["conda-forge"]
+platforms = ["linux-64", "osx-arm64", "win-64"]
+
+[dependencies]
+python = "3.12.*"
+llvmdev = "21.1.8.*"
+llvm-tools = "21.1.8.*"
+clang = "21.1.8.*"
+lld = "21.1.8.*"
+
+[target.linux-64.dependencies]
+patchelf = ">=0.17,<0.20"
+
+[tasks]
+build = "python ci/compiler/build.py"
+metadata-check = "python ci/compiler/check_metadata.py target/release/openvaf-r build/metadata-check"

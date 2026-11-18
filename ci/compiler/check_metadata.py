@@ -28,6 +28,80 @@ class DescriptorPrefix(c.Structure):
     ]
 
 
+class SimParameters(c.Structure):
+    _fields_ = [
+        ("names", c.c_void_p),
+        ("values", c.c_void_p),
+        ("string_names", c.c_void_p),
+        ("strings", c.c_void_p),
+    ]
+
+
+class InitInfo(c.Structure):
+    _fields_ = [
+        ("flags", c.c_uint32),
+        ("num_errors", c.c_uint32),
+        ("errors", c.c_void_p),
+    ]
+
+
+class InitializationPrefix(c.Structure):
+    # Complete descriptor prefix through setup_instance, matching osdi_0_5.h.
+    _fields_ = DescriptorPrefix._fields_ + [
+        ("num_collapsible", c.c_uint32),
+        ("collapsible", c.c_void_p),
+        ("collapsed_offset", c.c_uint32),
+        ("noise_sources", c.c_void_p),
+        ("num_noise_src", c.c_uint32),
+        ("num_params", c.c_uint32),
+        ("num_instance_params", c.c_uint32),
+        ("num_opvars", c.c_uint32),
+        ("param_opvar", c.c_void_p),
+        ("node_mapping_offset", c.c_uint32),
+        ("jacobian_ptr_resist_offset", c.c_uint32),
+        ("num_states", c.c_uint32),
+        ("state_idx_off", c.c_uint32),
+        ("bound_step_offset", c.c_uint32),
+        ("instance_size", c.c_uint32),
+        ("model_size", c.c_uint32),
+        ("access", c.c_void_p),
+        ("setup_model", c.c_void_p),
+        ("setup_instance", c.c_void_p),
+    ]
+
+
+def initialize(library):
+    descriptor = InitializationPrefix.in_dll(library, "OSDI_DESCRIPTORS")
+    model = (c.c_double * (descriptor.model_size // 8 + 1))()
+    instance = (c.c_double * (descriptor.instance_size // 8 + 1))()
+    parameters, info = SimParameters(), InitInfo()
+    setup_model = c.CFUNCTYPE(
+        None, c.c_void_p, c.c_void_p, c.POINTER(SimParameters), c.POINTER(InitInfo)
+    )
+    setup_instance = c.CFUNCTYPE(
+        None,
+        c.c_void_p,
+        c.c_void_p,
+        c.c_void_p,
+        c.c_double,
+        c.c_uint32,
+        c.POINTER(SimParameters),
+        c.POINTER(InitInfo),
+    )
+    setup_model(descriptor.setup_model)(None, model, c.byref(parameters), c.byref(info))
+    assert info.num_errors == 0 and info.flags == 0, "Model initialization failed"
+    setup_instance(descriptor.setup_instance)(
+        None,
+        instance,
+        model,
+        300,
+        descriptor.num_terminals,
+        c.byref(parameters),
+        c.byref(info),
+    )
+    assert info.num_errors == 0 and info.flags == 0, "Instance initialization failed"
+
+
 def inspect(path, affine):
     library = c.CDLL(str(path.resolve()))
     version = tuple(
@@ -49,7 +123,13 @@ def inspect(path, affine):
             assert all(flag & constant for flag in active), flags
         else:
             assert any(not flag & constant for flag in active), flags
-    return {"module": descriptor.name.decode(), "version": version, "flags": flags}
+    initialize(library)
+    return {
+        "module": descriptor.name.decode(),
+        "version": version,
+        "flags": flags,
+        "initialized": True,
+    }
 
 
 def main():

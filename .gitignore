@@ -38,3 +38,7 @@ markus_notes
 **.swp
 **.swo
 .llvm-version
+
+# Locked compiler environment and Python helper caches.
+/.pixi/
+/ci/compiler/__pycache__/

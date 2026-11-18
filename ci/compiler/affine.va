@@ -4,10 +4,10 @@
 module affine(p, n, drive);
     inout p, n, drive;
     electrical p, n, drive;
-    (* type="instance" *) parameter real resistance=1;
+    (* type="instance" *) parameter real resistance=1.3;
     (* type="instance" *) parameter real offset=0;
     analog begin
-        I(p,n) <+ V(p,n)/resistance
+        I(p,n) <+ sin(resistance)*V(p,n)/resistance
                   - 2*(offset+V(drive))/sqrt(resistance);
         I(p,n) <+ ddt(resistance*V(p,n));
     end
