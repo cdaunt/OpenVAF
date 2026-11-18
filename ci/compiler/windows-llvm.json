@@ -1,0 +1,26 @@
+[
+  {
+    "url": "https://repo.msys2.org/mingw/ucrt64/mingw-w64-ucrt-x86_64-llvm-21.1.8-1-any.pkg.tar.zst",
+    "sha256": "0e309f0aecc5d24e6fb3060b1473b648a232b53842be10fa541d8ffb96cc4eef"
+  },
+  {
+    "url": "https://repo.msys2.org/mingw/ucrt64/mingw-w64-ucrt-x86_64-llvm-libs-21.1.8-1-any.pkg.tar.zst",
+    "sha256": "9d7b9624ca7459af62b1e7fd12aef6aac30b8c1be8781cd74a3b574b6e23b255"
+  },
+  {
+    "url": "https://repo.msys2.org/mingw/ucrt64/mingw-w64-ucrt-x86_64-llvm-tools-21.1.8-1-any.pkg.tar.zst",
+    "sha256": "4f02965b8e596cd41ed1b1e1000f4ed342c15074e1f10e9c5e3576cdc306c664"
+  },
+  {
+    "url": "https://repo.msys2.org/mingw/ucrt64/mingw-w64-ucrt-x86_64-clang-21.1.8-1-any.pkg.tar.zst",
+    "sha256": "8e6ab9fa1c6989a34fbdf86bfd21a7bd22b5d62d3026f4cb583e002b13e2d6f7"
+  },
+  {
+    "url": "https://repo.msys2.org/mingw/ucrt64/mingw-w64-ucrt-x86_64-lld-21.1.8-1-any.pkg.tar.zst",
+    "sha256": "598fd0073b1b1cd92119e64722a455b65fe163d0a89458021f715526d325aaf1"
+  },
+  {
+    "url": "https://repo.msys2.org/mingw/ucrt64/mingw-w64-ucrt-x86_64-clang-libs-21.1.8-1-any.pkg.tar.zst",
+    "sha256": "e8684464ea35f2ee57a59662914b57567bfa7609f0b04a7380179ed7544cbe21"
+  }
+]

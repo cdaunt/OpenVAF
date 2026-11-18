@@ -1,0 +1,8 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Unknown-dependent derivatives must remain nonconstant.
+`include "disciplines.vams"
+module nonlinear(p, n);
+    inout p, n;
+    electrical p, n;
+    analog I(p,n) <+ V(p,n)*V(p,n) + ddt(V(p,n)*V(p,n));
+endmodule

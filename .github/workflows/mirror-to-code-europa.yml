@@ -17,6 +17,8 @@ permissions:
 
 jobs:
   mirror:
+    # The personal compiler fork has its own distribution; never mirror it elsewhere.
+    if: github.repository != 'cdaunt/OpenVAF'
     runs-on: ubuntu-latest
     env:
       # Target project path on code.europa.eu, e.g. my-group/my-subgroup/my-project

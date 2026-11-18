@@ -16,9 +16,9 @@ use llvm_sys::target::{
     LLVMPointerSize, LLVMTargetDataRef,
 };
 use llvm_sys::LLVMValue;
-use mir::{ValueDef, F_ZERO};
+use mir::F_ZERO;
 use mir_llvm::CodegenCx;
-use sim_back::dae::{MatrixEntry, NoiseSourceKind, ResidualNatureKind};
+use sim_back::dae::{NoiseSourceKind, ResidualNatureKind};
 use sim_back::SimUnknownKind;
 use smol_str::SmolStr;
 use stdx::iter::zip;
@@ -301,23 +301,9 @@ impl<'ll> OsdiCompilationUnit<'_, '_, 'll> {
             .collect()
     }
 
-    fn is_const(&self, entry: &MatrixEntry, reactive: bool) -> bool {
-        let entry = if reactive { entry.react } else { entry.resist };
-        match self.module.eval.dfg.value_def(entry) {
-            ValueDef::Result(_, _) => false,
-            ValueDef::Param(param) => self
-                .module
-                .intern
-                .params
-                .get_index(param)
-                .map_or(true, |(kind, _)| !kind.op_dependent()),
-            ValueDef::Const(_) => true,
-            ValueDef::Invalid => unreachable!(),
-        }
-    }
-
     pub fn jacobian_entries(&self, target_data: &LLVMTargetDataRef) -> Vec<OsdiJacobianEntry> {
         let OsdiCompilationUnit { inst_data, module, .. } = self;
+        assert_eq!(module.dae_system.jacobian.len(), module.jacobian_constness.len());
         let mut jacobian_ptr_react_offset = unsafe {
             LLVMOffsetOfElement(
                 *target_data,
@@ -332,15 +318,16 @@ impl<'ll> OsdiCompilationUnit<'_, '_, 'll> {
             .dae_system
             .jacobian
             .iter()
-            .map(|entry| {
+            .zip(module.jacobian_constness.iter())
+            .map(|(entry, constness)| {
                 let mut flags = 0;
                 let mut react_ptr_off = u32::MAX;
 
-                if self.is_const(entry, false) {
+                if constness.resist_const {
                     flags |= JACOBIAN_ENTRY_RESIST_CONST
                 }
 
-                if self.is_const(entry, true) {
+                if constness.react_const {
                     flags |= JACOBIAN_ENTRY_REACT_CONST
                 }
 

@@ -1,1 +1,10 @@
+# Preserve compiler inputs and lockfile checksums on Windows.
+* text=auto
+*.rs text eol=lf
+*.va text eol=lf
+*.py text eol=lf
+*.json text eol=lf
+*.yml text eol=lf
+Cargo.lock text eol=lf
+
 *.ungram text eol=lf

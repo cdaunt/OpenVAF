@@ -1,0 +1,101 @@
+name: OSDI 0.5 compiler artifacts
+
+on:
+  push:
+    branches: [mb-experimental]
+  pull_request:
+    paths:
+      - 'openvaf/**'
+      - 'ci/compiler/**'
+      - 'Cargo.lock'
+      - '.github/workflows/compiler-artifacts.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  compiler:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-24.04
+            target: x86_64-linux
+          - os: macos-15
+            target: aarch64-macos
+          - os: windows-2022
+            target: x86_64-windows
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    defaults:
+      run:
+        shell: bash
+    env:
+      MACOSX_DEPLOYMENT_TARGET: '13.0'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: '3.12'
+      - run: rustup toolchain install 1.94.0 --profile minimal --component rustfmt
+      - name: Check affine fix formatting
+        run: rustfmt +1.94.0 --edition 2021 --check openvaf/sim_back/src/jacobian_const.rs
+      - name: Install Linux LLVM 21
+        if: runner.os == 'Linux'
+        run: |
+          curl --fail --silent --show-error https://apt.llvm.org/llvm.sh -o "$RUNNER_TEMP/llvm.sh"
+          sudo bash "$RUNNER_TEMP/llvm.sh" 21
+          sudo apt-get install -y llvm-21-dev clang-21 lld-21
+          echo 'LLVM_SYS_211_PREFIX=/usr/lib/llvm-21' >> "$GITHUB_ENV"
+          echo '/usr/lib/llvm-21/bin' >> "$GITHUB_PATH"
+      - name: Install macOS LLVM 21
+        if: runner.os == 'macOS'
+        run: |
+          brew install llvm@21
+          echo "LLVM_SYS_211_PREFIX=$(brew --prefix llvm@21)" >> "$GITHUB_ENV"
+          echo "$(brew --prefix llvm@21)/bin" >> "$GITHUB_PATH"
+      - name: Install Windows prerequisites
+        if: runner.os == 'Windows'
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: UCRT64
+          path-type: inherit
+          update: true
+          install: >-
+            base-devel git mingw-w64-ucrt-x86_64-gcc
+            mingw-w64-ucrt-x86_64-libffi mingw-w64-ucrt-x86_64-libxml2
+            mingw-w64-ucrt-x86_64-zlib mingw-w64-ucrt-x86_64-zstd
+      - name: Install checksum-pinned Windows LLVM 21
+        if: runner.os == 'Windows'
+        shell: msys2 {0}
+        run: |
+          python ci/compiler/windows_llvm.py build/windows-llvm21
+          pacman --noconfirm -U build/windows-llvm21/*.pkg.tar.zst
+          version="$(/ucrt64/bin/llvm-config --version | tr -d '\r')"
+          echo "LLVM version: $version"
+          test "$version" = '21.1.8'
+      - name: Build and check compiler (Unix)
+        if: runner.os != 'Windows'
+        run: |
+          cargo +1.94.0 build --locked --release -p openvaf-driver --features llvm21
+          python ci/compiler/check_metadata.py target/release/openvaf-r build/metadata-check
+          python ci/compiler/package.py target/release/openvaf-r '${{ matrix.target }}'
+      - name: Build and check compiler (Windows)
+        if: runner.os == 'Windows'
+        shell: msys2 {0}
+        run: |
+          export PATH="$(cygpath -u "${CARGO_HOME:-$USERPROFILE/.cargo}")/bin:$PATH"
+          rustup toolchain install 1.94.0-x86_64-pc-windows-gnu --profile minimal
+          export LLVM_SYS_211_PREFIX="$(cygpath -m /ucrt64)"
+          cargo +1.94.0-x86_64-pc-windows-gnu build --locked --release -p openvaf-driver --features llvm21
+          python ci/compiler/check_metadata.py target/release/openvaf-r.exe build/metadata-check
+          python ci/compiler/package.py target/release/openvaf-r.exe '${{ matrix.target }}'
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: openvaf-r-osdi05-${{ matrix.target }}-${{ github.sha }}
+          path: build/compiler-dist/*
+          if-no-files-found: error
+          retention-days: 30
