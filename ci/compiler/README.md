@@ -29,7 +29,13 @@ and generate its own numerical implementation without linking OpenVAF crates.
 This is a separate offline model-compilation step, not a simulation RPC protocol.
 See `openvaf/numerical-ir-export/README.md` in the corresponding source archive.
 The portable archive test also runs the JSON exporter after relocation with an
-empty tool search path. Native numerical parity and Enzyme gradients are
+empty tool search path. Every platform must emit the same canonical semantic
+SHA-256 for the independently qualified nonlinear RC fixture (including F/Q,
+preparation, branches and sparse Jacobians); producer provenance is excluded
+from that comparison. Checks also move source files through paths containing
+spaces and Unicode and require unsupported integer parameters to reject without
+an artifact. The general Rust CI runs the same exporter checks under both
+Windows GNU environments and its Linux/macOS LLVM toolchains. Native numerical parity and Enzyme gradients are
 downstream qualification gates, not claims made by this serialization check.
 
 The marker `bin/openvaf-portable` selects native linking through the bundled LLD
