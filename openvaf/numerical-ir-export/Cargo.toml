@@ -1,0 +1,17 @@
+[package]
+name = "openvaf-numerical-ir"
+version = "0.0.1"
+edition = "2021"
+publish = false
+license = "GPL-3.0-only"
+
+[dependencies]
+basedb = { path = "../basedb" }
+hir = { path = "../hir" }
+hir_lower = { path = "../hir_lower" }
+mir = { path = "../mir" }
+sim_back = { path = "../sim_back" }
+paths = { path = "../../lib/paths" }
+lasso = "0.7"
+serde_json = "1"
+sha2 = "0.10"

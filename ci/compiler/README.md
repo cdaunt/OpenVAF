@@ -21,6 +21,17 @@ together. Run `bin/openvaf-r --target_cpu generic model.va -o model.osdi` (use
 installation is required by the compiler archive. Normal platform system runtime
 libraries remain prerequisites; this is a relocatable archive, not a static binary.
 
+The archive also includes `bin/openvaf-numerical-ir` (`.exe` on Windows):
+`openvaf-numerical-ir model.va model.ir.json` emits the versioned data-only
+`circuit-numerical-ir` v1 stateless electrical F/Q profile. It requires neither
+LLVM nor Rust at use time. An independent consumer can validate that artifact
+and generate its own numerical implementation without linking OpenVAF crates.
+This is a separate offline model-compilation step, not a simulation RPC protocol.
+See `openvaf/numerical-ir-export/README.md` in the corresponding source archive.
+The portable archive test also runs the JSON exporter after relocation with an
+empty tool search path. Native numerical parity and Enzyme gradients are
+downstream qualification gates, not claims made by this serialization check.
+
 The marker `bin/openvaf-portable` selects native linking through the bundled LLD
 using executable-relative paths. Portable mode supports the native target only.
 Explicit `--linker` overrides retain upstream behavior for advanced toolchains;

@@ -48,6 +48,8 @@ jobs:
       - run: rustup toolchain install 1.94.0 --profile minimal --component rustfmt
       - name: Check affine fix formatting
         run: rustfmt +1.94.0 --edition 2021 --check openvaf/sim_back/src/jacobian_const.rs
+      - name: Check numerical exporter formatting
+        run: rustfmt +1.94.0 --edition 2021 --check openvaf/numerical-ir-export/src/main.rs
       - uses: prefix-dev/setup-pixi@a0af7a228712d6121d37aba47adf55c1332c9c2e # v0.9.4
         with:
           pixi-version: v0.76.1
@@ -60,6 +62,11 @@ jobs:
           binary=target/release/openvaf-r
           if [[ "$RUNNER_OS" == Windows ]]; then binary="$binary.exe"; fi
           pixi run python ci/compiler/check_metadata.py "$binary" build/metadata-check
+      - name: Check numerical interchange exporter
+        run: |
+          binary=target/release/openvaf-numerical-ir
+          if [[ "$RUNNER_OS" == Windows ]]; then binary="$binary.exe"; fi
+          pixi run python ci/compiler/check_numerical_ir.py "$binary" build/numerical-check
       - name: Package portable compiler with runtime libraries and linker
         run: |
           binary=target/release/openvaf-r

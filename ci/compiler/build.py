@@ -7,7 +7,13 @@ from pathlib import Path
 
 root = Path(__file__).resolve().parents[2]
 prefix = subprocess.check_output(["llvm-config", "--prefix"], text=True).strip()
-env = dict(os.environ, LLVM_SYS_211_PREFIX=prefix)
+env = dict(
+    os.environ,
+    LLVM_SYS_211_PREFIX=prefix,
+    OPENVAF_IR_REVISION=subprocess.check_output(
+        ["git", "rev-parse", "HEAD"], cwd=root, text=True
+    ).strip(),
+)
 if os.name == "nt":
     # LLVM's exported CMake system-library names differ from conda-forge's
     # import-library filenames. Supply build-local aliases for the same DLLs.
@@ -48,3 +54,17 @@ command = [
 if os.name == "nt":
     command.extend(["--", "-L", f"native={aliases_dir}"])
 subprocess.run(command, cwd=root, env=env, check=True)
+subprocess.run(
+    [
+        "cargo",
+        "+1.94.0",
+        "build",
+        "--locked",
+        "--release",
+        "-p",
+        "openvaf-numerical-ir",
+    ],
+    cwd=root,
+    env=env,
+    check=True,
+)
