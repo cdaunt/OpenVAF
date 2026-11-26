@@ -220,6 +220,9 @@ jobs:
         cargo test --release --package mir_llvm ${{ matrix.cargo_features }}
 
     - name: Run integration tests
+      env:
+        # Descriptor snapshots must run here too, rather than only on macOS.
+        RUN_DEV_TESTS: "1"
       run: cargo test --release --package openvaf --test integration ${{ matrix.cargo_features }}
 
   msys2-build-test:

@@ -75,3 +75,13 @@ archive checksum tested. Only passing jobs upload artifacts. Full downstream
 model-catalog numerical qualification and detached public-facade checks remain
 separate from this focused compiler gate. Application developers consume prebuilt
 `.osdi` packs and do not need these compiler archives.
+
+## Descriptor regression snapshots
+
+The broad compiler integration suite is enabled by `RUN_DEV_TESTS=1`, including
+on Linux LLVM CI and both macOS jobs. Its checked snapshots include the fork's
+constant-Jacobian metadata. The numerical exporter fixture checks and portable
+archive tests run independently of that development-test switch. Snapshot
+updates must preserve node/parameter layouts, Jacobian coordinates and all other
+flags; verify each changed constant classification against the compiler change
+and rerun without `UPDATE_EXPECT` before accepting it.
