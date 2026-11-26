@@ -198,6 +198,11 @@ jobs:
         cargo build --release --package osdi ${{ matrix.cargo_features }}
         cargo build --release --package mir_llvm ${{ matrix.cargo_features }}
 
+    - name: Check numerical interchange exporter
+      run: |
+        cargo build --locked --release -p openvaf-numerical-ir
+        python3 ci/compiler/check_numerical_ir.py target/release/openvaf-numerical-ir build/numerical-check
+
     - name: Show sccache stats
       if: github.event_name != 'release' && github.event_name != 'workflow_dispatch'
       shell: bash
@@ -215,6 +220,9 @@ jobs:
         cargo test --release --package mir_llvm ${{ matrix.cargo_features }}
 
     - name: Run integration tests
+      env:
+        # Descriptor snapshots must run here too, rather than only on macOS.
+        RUN_DEV_TESTS: "1"
       run: cargo test --release --package openvaf --test integration ${{ matrix.cargo_features }}
 
   msys2-build-test:
@@ -241,7 +249,6 @@ jobs:
           rust:p
           cc:p
           python:p
-          sccache:p
 
     - name: Configure Cargo to use CLI Git
       shell: bash
@@ -249,21 +256,6 @@ jobs:
         mkdir -p .cargo
         echo '[net]' > .cargo/config.toml
         echo 'git-fetch-with-cli = true' >> .cargo/config.toml
-
-    - name: Cache sccache
-      uses: actions/cache@v4
-      with:
-        path: ~/.cache/sccache
-        key: ${{ runner.os }}-${{ runner.arch }}-sccache-${{ hashFiles('**/Cargo.lock') }}
-        restore-keys: |
-          ${{ runner.os }}-${{ runner.arch }}-sccache-
-
-    - name: Locate and configure sccache
-      shell: msys2 {0}
-      run: |
-        # export SCCACHE_PATH=$(which sccache)
-        # echo "SCCACHE_GHA_ENABLED=true" >> "$GITHUB_ENV"
-        echo "RUSTC_WRAPPER=${SCCACHE_PATH}" >> "$GITHUB_ENV"
 
     - name: "Cache cargo"
       id: cache-cargo
@@ -275,16 +267,15 @@ jobs:
           ~/.cargo/registry/cache/
           ~/.cargo/git/db/
           target/
-        key: ${{ runner.os }}-${{ runner.arch }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-        restore-keys: ${{ runner.os }}-${{ runner.arch }}-cargo-
+        key: ${{ runner.os }}-${{ runner.arch }}-${{ matrix.sys }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+        restore-keys: ${{ runner.os }}-${{ runner.arch }}-${{ matrix.sys }}-cargo-
 
     - name: Run cargo
       shell: msys2 {0}
       run: cargo build --release --features llvm21
-    #- name: Show sccache stats
-    #  if: github.event_name != 'release' && github.event_name != 'workflow_dispatch'
-    #  shell: msys2 {0}
-    #  run: $SCCACHE_PATH --show-stats
+    - name: Check numerical interchange exporter
+      shell: msys2 {0}
+      run: python ci/compiler/check_numerical_ir.py target/release/openvaf-numerical-ir.exe build/numerical-check
 
     - name: Run tests
       shell: msys2 {0}
@@ -343,6 +334,9 @@ jobs:
 
     - name: Build
       run: cargo build --release --features llvm21
+
+    - name: Check numerical interchange exporter
+      run: python3 ci/compiler/check_numerical_ir.py target/release/openvaf-numerical-ir build/numerical-check
 
     - name: Run tests
       run: cargo test --release --features llvm21

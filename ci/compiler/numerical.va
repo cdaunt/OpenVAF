@@ -1,0 +1,23 @@
+// SPDX-License-Identifier: MIT OR Apache-2.0
+`include "disciplines.vams"
+module nonlinear_rc(p,n);
+  inout p,n;
+  electrical p,n;
+  parameter real conductance=0.002;
+  parameter real capacitance=3e-12;
+  parameter real cubic=0.4;
+  parameter real tempco=0.003;
+  real g,c,v,shape;
+  analog begin
+    // Setup depends on both explicit parameters and actual simulator temperature.
+    g=conductance*(1+tempco*($temperature-300));
+    c=capacitance*(1+tempco*($temperature-300));
+    v=V(p,n);
+    // Three predecessors after optimization: exercise general phi lowering.
+    if (v < -0.2) shape=v*v*v-0.01;
+    else if (v > 0.3) shape=v*v*v+0.02;
+    else shape=v*v*v;
+    I(p,n) <+ g*(v+cubic*shape);
+    I(p,n) <+ ddt(c*(v+cubic*v*v*v));
+  end
+endmodule

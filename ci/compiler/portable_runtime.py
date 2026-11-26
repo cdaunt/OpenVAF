@@ -208,7 +208,11 @@ def bundle(stage, prefix):
     queue = (
         list((stage / "bin").glob("*.exe"))
         if system == "Windows"
-        else [stage / "bin/openvaf-r", stage / "bin" / tool]
+        else [
+            stage / "bin/openvaf-r",
+            stage / "bin/openvaf-numerical-ir",
+            stage / "bin" / tool,
+        ]
     )
     bundled = {}
     sources = {source}
@@ -270,6 +274,7 @@ def bundle(stage, prefix):
     if system == "Darwin":
         for image in list((stage / "lib").iterdir()) + [
             stage / "bin/openvaf-r",
+            stage / "bin/openvaf-numerical-ir",
             stage / "bin" / tool,
         ]:
             subprocess.run(

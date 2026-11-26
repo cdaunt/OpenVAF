@@ -35,12 +35,22 @@ def main():
         shutil.rmtree(stage)
     (stage / "bin").mkdir(parents=True)
     shutil.copy2(binary, stage / "bin" / binary.name)
+    numerical = binary.with_name(
+        "openvaf-numerical-ir.exe" if os.name == "nt" else "openvaf-numerical-ir"
+    )
+    shutil.copy2(numerical, stage / "bin" / numerical.name)
     shutil.copy2(ROOT / "LICENSE", stage / "LICENSE")
     shutil.copy2(ROOT / "ci/compiler/README.md", stage / "README.md")
     shutil.copy2(
         ROOT / "build/metadata-check/metadata-check.json", stage / "metadata-check.json"
     )
-    for name in ("affine.va", "nonlinear.va", "check_metadata.py"):
+    for name in (
+        "affine.va",
+        "nonlinear.va",
+        "check_metadata.py",
+        "numerical.va",
+        "check_numerical_ir.py",
+    ):
         shutil.copy2(ROOT / "ci/compiler" / name, stage / name)
     bundle(stage, Path(os.environ["CONDA_PREFIX"]).resolve())
     provenance = {
@@ -55,6 +65,10 @@ def main():
             (ROOT / "pixi.lock").read_bytes()
         ).hexdigest(),
         "compiler_version": capture(str(binary), "--version"),
+        "numerical_ir_version": capture(str(numerical), "--version"),
+        "numerical_ir_binary_sha256": hashlib.sha256(
+            (stage / "bin" / numerical.name).read_bytes()
+        ).hexdigest(),
         "rust": capture(
             "rustup",
             "run",

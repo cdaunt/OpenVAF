@@ -65,6 +65,23 @@ def verify(archive, hide_environment=None):
                 check=True,
             )
             receipt = json.loads((root / "results/metadata-check.json").read_text())
+            numerical = (
+                "openvaf-numerical-ir.exe"
+                if os.name == "nt"
+                else "openvaf-numerical-ir"
+            )
+            numerical_receipt = json.loads(
+                subprocess.check_output(
+                    [
+                        sys.executable,
+                        str(stage / "check_numerical_ir.py"),
+                        str(stage / "bin" / numerical),
+                        str(root / "numerical-results"),
+                    ],
+                    env=env,
+                    text=True,
+                )
+            )
             for name in ("affine.osdi", "nonlinear.osdi"):
                 if not (root / "results" / name).is_file():
                     raise RuntimeError(f"Missing portable test artifact: {name}")
@@ -78,6 +95,7 @@ def verify(archive, hide_environment=None):
             "relocated_spaces_unicode": True,
             "windows_stack_probe": os.name == "nt",
             "metadata": receipt,
+            "numerical_ir": numerical_receipt,
         }
         destination = output / (archive.stem + "-portable-check.json")
         destination.write_text(json.dumps(record, indent=2) + "\n", encoding="utf-8")

@@ -21,6 +21,23 @@ together. Run `bin/openvaf-r --target_cpu generic model.va -o model.osdi` (use
 installation is required by the compiler archive. Normal platform system runtime
 libraries remain prerequisites; this is a relocatable archive, not a static binary.
 
+The archive also includes `bin/openvaf-numerical-ir` (`.exe` on Windows):
+`openvaf-numerical-ir model.va model.ir.json` emits the versioned data-only
+`circuit-numerical-ir` v1 stateless electrical F/Q profile. It requires neither
+LLVM nor Rust at use time. An independent consumer can validate that artifact
+and generate its own numerical implementation without linking OpenVAF crates.
+This is a separate offline model-compilation step, not a simulation RPC protocol.
+See `openvaf/numerical-ir-export/README.md` in the corresponding source archive.
+The portable archive test also runs the JSON exporter after relocation with an
+empty tool search path. Every platform must emit the same canonical semantic
+SHA-256 for the independently qualified nonlinear RC fixture (including F/Q,
+preparation, branches and sparse Jacobians); producer provenance is excluded
+from that comparison. Checks also move source files through paths containing
+spaces and Unicode and require unsupported integer parameters to reject without
+an artifact. The general Rust CI runs the same exporter checks under both
+Windows GNU environments and its Linux/macOS LLVM toolchains. Native numerical parity and Enzyme gradients are
+downstream qualification gates, not claims made by this serialization check.
+
 The marker `bin/openvaf-portable` selects native linking through the bundled LLD
 using executable-relative paths. Portable mode supports the native target only.
 Explicit `--linker` overrides retain upstream behavior for advanced toolchains;
@@ -58,3 +75,13 @@ archive checksum tested. Only passing jobs upload artifacts. Full downstream
 model-catalog numerical qualification and detached public-facade checks remain
 separate from this focused compiler gate. Application developers consume prebuilt
 `.osdi` packs and do not need these compiler archives.
+
+## Descriptor regression snapshots
+
+The broad compiler integration suite is enabled by `RUN_DEV_TESTS=1`, including
+on Linux LLVM CI and both macOS jobs. Its checked snapshots include the fork's
+constant-Jacobian metadata. The numerical exporter fixture checks and portable
+archive tests run independently of that development-test switch. Snapshot
+updates must preserve node/parameter layouts, Jacobian coordinates and all other
+flags; verify each changed constant classification against the compiler change
+and rerun without `UPDATE_EXPECT` before accepting it.
